@@ -29,7 +29,7 @@ def preprocess(image: Image.Image) -> np.ndarray:
     image = np.array(image).astype(np.float32) / 255.0
     image = (image - [0.485, 0.456, 0.406]) / [0.229, 0.224, 0.225]
     image = np.transpose(image, (2, 0, 1)) 
-    return np.expand_dims(image, axis=0)    
+    return np.expand_dims(image, axis=0).astype(np.float32)  
 
 @app.get("/health")
 def health():
