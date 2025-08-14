@@ -2,40 +2,42 @@ from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.responses import PlainTextResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import Literal
 import io
 from PIL import Image
 import numpy as np
 import onnxruntime as ort
 
-import torchvision.transforms as transforms
-
 MODEL_PATH = "model.onnx"
 THRESHOLD = 0.7
 
+# FastAPI 앱 생성
 app = FastAPI(title="Reusable Classifier API (ONNX)", version="1.0.0")
 
+# CORS 설정
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  # 배포 시엔 제한 필요
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# 이미지 전처리
-preprocess = transforms.Compose([
-    transforms.Resize((224, 224)),
-    transforms.ToTensor(),
-    transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
-])
-
 # ONNX 세션 생성
 ort_session = ort.InferenceSession(MODEL_PATH)
 
+# 이미지 전처리 함수
+def preprocess(image: Image.Image) -> np.ndarray:
+    image = image.resize((224, 224)) 
+    image = np.array(image).astype(np.float32) / 255.0  
+    image = (image - 0.5) / 0.5  #
+    image = np.transpose(image, (2, 0, 1)) 
+    return np.expand_dims(image, axis=0)  
+
+# 헬스체크 엔드포인트
 @app.get("/health")
 def health():
     return {"ok": True, "onnx_runtime": ort.__version__}
 
+# 예측 엔드포인트
 @app.post("/predict", response_class=PlainTextResponse)
 async def predict(file: UploadFile = File(...)):
     if not file.filename.lower().endswith((".jpg", ".jpeg", ".png", ".webp", ".bmp")):
@@ -45,7 +47,7 @@ async def predict(file: UploadFile = File(...)):
         img_bytes = await file.read()
         image = Image.open(io.BytesIO(img_bytes)).convert("RGB")
 
-        x = preprocess(image).unsqueeze(0).numpy()  # [1, 3, 224, 224]
+        x = preprocess(image)
 
         # ONNX 추론
         inputs = {ort_session.get_inputs()[0].name: x}
