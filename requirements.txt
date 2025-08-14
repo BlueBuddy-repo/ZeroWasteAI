@@ -3,3 +3,4 @@ uvicorn
 pillow
 python-multipart
 onnxruntime  # 추론용
+scipy
